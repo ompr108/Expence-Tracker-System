@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Login — Expense Tracker Pro{% endblock %}
+{% block body %}
+<div class="auth-wrap">
+  <div class="auth-panel-left">
+    <div class="auth-brand-icon">₹</div>
+    <h1 class="auth-brand-title">Expense<br>Tracker<br><em>Pro</em></h1>
+    <p class="auth-brand-sub">Your money, fully in control.</p>
+    <div class="auth-pills">
+      <div class="auth-pill">📊 Visual Spending Reports</div>
+      <div class="auth-pill">💾 CSV Export</div>
+      <div class="auth-pill">🏷️ Custom Categories</div>
+      <div class="auth-pill">🎯 Savings Goal Tracker</div>
+      <div class="auth-pill">🌙 Dark / Light Glass UI</div>
+    </div>
+  </div>
+  <div class="auth-panel-right">
+    <div class="auth-form-box fade-up">
+      <h2>Welcome back</h2>
+      <p class="sub">Sign in to your account</p>
+      {% if success %}<div class="alert alert-ok" style="margin-bottom:16px">✅ {{ success }}</div>{% endif %}
+      {% if error   %}<div class="alert alert-err" style="margin-bottom:16px">⚠️ {{ error }}</div>{% endif %}
+      <form method="POST" action="/login" class="auth-form">
+        <div class="fg"><label>Username</label><input type="text" name="username" placeholder="Your username" required autocomplete="username"></div>
+        <div class="fg"><label>Password</label><input type="password" name="password" placeholder="Your password" required autocomplete="current-password"></div>
+        <button type="submit" class="btn btn-primary btn-full">Sign In →</button>
+      </form>
+      <div class="auth-footer">No account? <a href="/register">Create one free</a></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

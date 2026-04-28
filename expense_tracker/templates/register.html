@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Register — Expense Tracker Pro{% endblock %}
+{% block body %}
+<div class="auth-wrap">
+  <div class="auth-panel-left">
+    <div class="auth-brand-icon">₹</div>
+    <h1 class="auth-brand-title">Expense<br>Tracker<br><em>Pro</em></h1>
+    <p class="auth-brand-sub">Start tracking smarter today.</p>
+    <div class="auth-pills">
+      <div class="auth-pill">🔒 Secure & Private</div>
+      <div class="auth-pill">📅 Monthly Budgets</div>
+      <div class="auth-pill">📈 Smart Insights</div>
+      <div class="auth-pill">🎯 Category Limits</div>
+    </div>
+  </div>
+  <div class="auth-panel-right">
+    <div class="auth-form-box fade-up">
+      <h2>Create account</h2>
+      <p class="sub">Free forever, no credit card</p>
+      {% if error %}<div class="alert alert-err" style="margin-bottom:16px">⚠️ {{ error }}</div>{% endif %}
+      <form method="POST" action="/register" class="auth-form">
+        <div class="fg"><label>Username</label><input type="text" name="username" placeholder="Choose a username" required></div>
+        <div class="fg"><label>Email</label><input type="email" name="email" placeholder="your@email.com" required></div>
+        <div class="fg"><label>Password</label><input type="password" name="password" placeholder="Min. 6 characters" required></div>
+        <div class="fg"><label>Confirm Password</label><input type="password" name="confirm_password" placeholder="Repeat password" required></div>
+        <button type="submit" class="btn btn-primary btn-full">Create Account →</button>
+      </form>
+      <div class="auth-footer">Already have an account? <a href="/login">Sign in</a></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Settings — Expense Tracker Pro{% endblock %}
+{% block body %}
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">₹</div>
+        <span class="sidebar-brand-name">ExpensePro</span>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+    <nav class="nav">
+      <a href="/dashboard" class="nav-item" data-tip="Dashboard"><span class="nav-icon">📊</span><span class="nav-label">Dashboard</span></a>
+      <a href="/history"   class="nav-item" data-tip="History"><span class="nav-icon">📋</span><span class="nav-label">History</span></a>
+      <a href="/set_income" class="nav-item active" data-tip="Settings"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></a>
+      <a href="/export_csv" class="nav-item" data-tip="Export CSV"><span class="nav-icon">📥</span><span class="nav-label">Export CSV</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="/toggle_theme" class="theme-btn">
+        <span>{% if user.theme=='light' %}🌙{% else %}☀️{% endif %}</span>
+        <span class="theme-label">{% if user.theme=='light' %}Dark Mode{% else %}Light Mode{% endif %}</span>
+      </a>
+      <div class="user-chip">
+        <div class="user-av">{{ session.username[0].upper() }}</div>
+        <div class="user-info"><div class="user-name">{{ session.username }}</div><div class="user-role">Personal</div></div>
+      </div>
+      <a href="/logout" class="logout-btn"><span>🚪</span><span class="logout-label">Logout</span></a>
+    </div>
+  </aside>
+  <main class="main" id="mainContent">
+    <div class="page-header fade-up">
+      <div><h1 class="page-title">Settings</h1><p class="page-sub">Income, budgets &amp; goals</p></div>
+    </div>
+    <div class="settings-wrap">
+      <div class="settings-card card glass fade-up d1">
+        <div class="card-hdr"><h3>Financial Settings</h3><span class="card-sub">All months</span></div>
+        {% if msg %}<div class="alert alert-ok" style="margin:16px 20px 0">✅ {{ msg }}</div>{% endif %}
+        <form method="POST" class="settings-body">
+          <div class="income-grid">
+            <div class="fg"><label>Monthly Income (₹)</label><input type="number" name="income" step="0.01" min="0" value="{{ user.monthly_income }}" required></div>
+            <div class="fg"><label>Monthly Budget (₹)</label><input type="number" name="budget" step="0.01" min="0" value="{{ user.monthly_budget }}" required></div>
+          </div>
+          {% if user.monthly_income > 0 and user.monthly_budget > 0 %}
+          <div class="savings-preview">
+            <span>💡 Planned savings:</span>
+            <strong>₹{{ "%.0f"|format(user.monthly_income - user.monthly_budget) }} ({{ "%.0f"|format(((user.monthly_income - user.monthly_budget)/user.monthly_income*100)) }}%)</strong>
+          </div>
+          {% endif %}
+          <hr class="section-sep">
+          <div class="section-ttl">🎯 Savings Goal</div>
+          <div class="income-grid">
+            <div class="fg"><label>Goal Name</label><input type="text" name="goal_name" value="{{ user.savings_goal_name or 'Emergency Fund' }}"></div>
+            <div class="fg"><label>Target Amount (₹)</label><input type="number" name="goal_target" step="0.01" min="0" value="{{ user.savings_goal_target or 0 }}"></div>
+          </div>
+          <div class="fg"><label>Current Savings (₹)</label><input type="number" name="goal_current" step="0.01" min="0" value="{{ user.savings_goal_current or 0 }}"><span class="input-hint">This can also be updated directly from the Dashboard card.</span></div>
+          <hr class="section-sep">
+          <div class="section-ttl">🏷️ Category Budgets (₹ · 0 = unlimited)</div>
+          <div class="cat-grid">
+            {% for cat in categories %}
+            <div class="fg"><label>{{ cat }}</label><input type="number" name="cat_budget_{{ cat }}" step="0.01" min="0" value="{{ cat_budget_dict.get(cat, 0) }}" placeholder="0"></div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">💾 Save All Settings</button>
+        </form>
+        <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}

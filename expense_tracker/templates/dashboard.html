@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Expense Tracker Pro{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block body %}
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">₹</div>
+        <span class="sidebar-brand-name">ExpensePro</span>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
+    </div>
+    <nav class="nav">
+      <a href="/dashboard" class="nav-item active" data-tip="Dashboard"><span class="nav-icon">📊</span><span class="nav-label">Dashboard</span></a>
+      <a href="/history"   class="nav-item" data-tip="History"><span class="nav-icon">📋</span><span class="nav-label">History</span></a>
+      <a href="/set_income" class="nav-item" data-tip="Settings"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></a>
+      <a href="/export_csv?month={{ current_month }}" class="nav-item" data-tip="Export CSV"><span class="nav-icon">📥</span><span class="nav-label">Export CSV</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="/toggle_theme" class="theme-btn" data-tip="Toggle theme">
+        <span>{% if user.theme == 'light' %}🌙{% else %}☀️{% endif %}</span>
+        <span class="theme-label">{% if user.theme == 'light' %}Dark Mode{% else %}Light Mode{% endif %}</span>
+      </a>
+      <div class="user-chip">
+        <div class="user-av">{{ session.username[0].upper() }}</div>
+        <div class="user-info">
+          <div class="user-name">{{ session.username }}</div>
+          <div class="user-role">Personal</div>
+        </div>
+      </div>
+      <a href="/logout" class="logout-btn" data-tip="Logout"><span>🚪</span><span class="logout-label">Logout</span></a>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="mainContent">
+
+    <div class="page-header fade-up">
+      <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-sub">Month:
+          <input type="month" id="monthPicker" class="month-pick" value="{{ current_month }}">
+        </p>
+      </div>
+      <button class="btn btn-primary" onclick="openModal()">＋ Add Expense</button>
+    </div>
+
+    <!-- Stats — Fix 5: stat-val uses --font-num via CSS -->
+    <div class="stats-grid fade-up d1">
+      <div class="stat-card stat-income glass">
+        <div class="stat-lbl">Monthly Income</div>
+        <div class="stat-val">₹{{ "%.0f"|format(user.monthly_income) }}</div>
+        <div class="stat-badge">💼 This Month</div>
+      </div>
+      <div class="stat-card stat-budget glass">
+        <div class="stat-lbl">Monthly Budget</div>
+        <div class="stat-val">₹{{ "%.0f"|format(user.monthly_budget) }}</div>
+        <div class="stat-badge {% if budget_pct>90 %}badge-bad{% elif budget_pct>70 %}badge-warn{% else %}badge-ok{% endif %}">{{ budget_pct }}% used</div>
+      </div>
+      <div class="stat-card stat-spent glass">
+        <div class="stat-lbl">Total Spent</div>
+        <div class="stat-val">₹{{ "%.0f"|format(total_spent) }}</div>
+        <div class="stat-badge">🛒 {{ transactions|length }} items</div>
+      </div>
+      <div class="stat-card stat-balance glass">
+        <div class="stat-lbl">Balance</div>
+        <div class="stat-val {% if balance<0 %}neg{% endif %}">₹{{ "%.0f"|format(balance) }}</div>
+        <div class="stat-badge {% if total_spent>user.monthly_budget and user.monthly_budget>0 %}badge-bad{% else %}badge-ok{% endif %}">
+          {% if total_spent>user.monthly_budget and user.monthly_budget>0 %}⚠️ Over Budget{% else %}✅ On track{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Budget Bar -->
+    {% if user.monthly_budget > 0 %}
+    <div class="budget-bar-wrap glass fade-up d2">
+      <div class="budget-bar-head">
+        <span>Budget Used</span>
+        <span>₹{{ "%.0f"|format(total_spent) }} / ₹{{ "%.0f"|format(user.monthly_budget) }}</span>
+      </div>
+      <div class="budget-bar-track">
+        <div class="budget-bar-fill {% if budget_pct>90 %}bar-bad{% elif budget_pct>70 %}bar-warn{% else %}bar-ok{% endif %}"
+             style="--target-w: {{ [budget_pct,100]|min }}%"></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Widgets -->
+    <div class="widget-row fade-up d3">
+      <!-- Money Pit -->
+      <div class="widget-card pit-card">
+        <div class="widget-lbl">🔥 Biggest Spend</div>
+        {% if top_cat %}
+        <div class="pit-cat">{{ top_cat }}</div>
+        <div class="pit-amt">₹{{ "%.0f"|format(top_amount) }} this month</div>
+        {% else %}
+        <div class="pit-cat" style="color:var(--text-2)">—</div>
+        {% endif %}
+      </div>
+
+      <!-- Daily Budget -->
+      <div class="widget-card daily-card">
+        <div class="widget-lbl">📅 Daily Budget Left</div>
+        <div class="daily-val">₹{{ daily_budget }}</div>
+        <div class="daily-sub">{{ days_left }} days remaining</div>
+      </div>
+
+      <!-- Fix 2: Savings Ring with inline Add Funds -->
+      <div class="widget-card ring-card glass">
+        <div class="ring-svg-wrap">
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            <circle class="ring-bg"   cx="36" cy="36" r="31.5"/>
+            <circle class="ring-fill" cx="36" cy="36" r="31.5" id="savingsRing" data-pct="{{ goal_pct }}"/>
+          </svg>
+          <div class="ring-pct" id="ringPct">{{ goal_pct }}%</div>
+        </div>
+        <div class="ring-info">
+          <div class="ring-name">{{ user.savings_goal_name or 'Savings Goal' }}</div>
+          <div class="ring-prog" id="ringProg">₹{{ "%.0f"|format(user.savings_goal_current or 0) }} / ₹{{ "%.0f"|format(user.savings_goal_target or 0) }}</div>
+          <div class="ring-add-funds">
+            <input type="number" id="addFundsInput" class="ring-funds-input" placeholder="₹ amount" min="0.01" step="0.01">
+            <button class="btn btn-primary btn-xs" onclick="addFunds()">＋ Add</button>
+          </div>
+          <div class="ring-funds-msg" id="fundMsg"></div>
+          <a href="/set_income" class="ring-edit">Edit goal →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fix 1: Pie Chart (side-by-side desktop) + Recent Activity -->
+    <div class="pie-row fade-up d4">
+      <div class="card glass">
+        <div class="card-hdr"><h3>Spending Breakdown</h3><span class="card-sub">By category</span></div>
+        {% if cat_data %}
+        <div class="pie-wrap">
+          <div class="pie-chart-col">
+            <canvas id="pieChart"></canvas>
+          </div>
+          <div class="pie-legend-col">
+            {% for cat, spent in cat_data.items() %}
+              {% if cat in cat_budgets and cat_budgets[cat] > 0 and (spent / cat_budgets[cat] * 100) > 80 %}
+              <div style="margin-bottom:6px">
+                <span class="cat-warn-badge">⚠️ {{ cat }}: {{ "%.0f"|format(spent/cat_budgets[cat]*100) }}% budget</span>
+              </div>
+              {% endif %}
+            {% endfor %}
+            <div class="legend" id="pieLegend"></div>
+          </div>
+        </div>
+        {% else %}
+        <div class="pie-empty"><span>📊</span><p>No data yet</p></div>
+        {% endif %}
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="card glass">
+        <div class="card-hdr"><h3>Recent Activity</h3><span class="card-sub">Last 5 transactions</span></div>
+        {% if recent_txs %}
+        <ul class="activity-list">
+          {% for t in recent_txs %}
+          <li class="activity-item">
+            <div class="act-icon">
+              {% if t.category=='Food' %}🍔{% elif t.category=='Transport' %}🚗{% elif t.category=='Rent' %}🏠{% elif t.category=='Shopping' %}🛍️{% elif t.category=='Entertainment' %}🎬{% elif t.category=='Health' %}💊{% else %}📦{% endif %}
+            </div>
+            <div class="act-info">
+              <div class="act-desc">{{ t.description or t.category }}</div>
+              <div class="act-date">{{ t.date }} · <span class="cb cb-{{ t.category|lower }}">{{ t.category }}</span></div>
+            </div>
+            <div class="act-amount">₹{{ "%.0f"|format(t.amount) }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+        <a href="/history?month={{ current_month }}" class="view-all-link">View all transactions →</a>
+        {% else %}
+        <div class="empty-act">No transactions yet this month.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Trend Charts -->
+    <div class="charts-row fade-up d5">
+      <div class="card glass">
+        <div class="card-hdr"><h3>6-Month Trend</h3><span class="card-sub">Monthly spend</span></div>
+        <div class="chart-body"><canvas id="trendChart"></canvas></div>
+      </div>
+      <div class="card glass">
+        <div class="card-hdr"><h3>Daily Spending</h3><span class="card-sub">Last 30 days · red = spike</span></div>
+        <div class="chart-body"><canvas id="dailyChart"></canvas></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ADD EXPENSE MODAL — Fix 3: Combobox category -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <h3>Add Expense</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <form method="POST" action="/add_transaction" class="modal-body" id="addExpenseForm">
+      <input type="hidden" name="redirect_to" value="dashboard">
+      <div class="fg"><label>Date</label><input type="date" name="date" id="modalDate" required></div>
+      <div class="fg"><label>Amount (₹)</label><input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required></div>
+
+      <!-- Fix 3: Combobox / searchable category with custom create -->
+      <div class="fg">
+        <label>Category</label>
+        <div class="combobox-wrap" id="catComboWrap">
+          <input type="text" id="catSearch" class="combobox-input" placeholder="Search or type new category…" autocomplete="off">
+          <input type="hidden" name="category" id="catHidden" required>
+          <div class="combobox-dropdown" id="catDropdown">
+            {% for cat in categories %}
+            <div class="combobox-opt" data-val="{{ cat }}">{{ cat }}</div>
+            {% endfor %}
+            <div class="combobox-opt combobox-create" id="catCreateOpt" style="display:none">
+              ＋ Create "<span id="catCreateLabel"></span>"
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fg"><label>Description <span class="opt">(optional)</span></label><input type="text" name="description" placeholder="What was this for?"></div>
+      <div class="checkbox-row">
+        <input type="checkbox" name="is_recurring" id="modalRec" value="1">
+        <label for="modalRec">🔁 Monthly Subscription / Recurring</label>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full">💾 Save Expense</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Fix 5: All chart numbers use Inter/sans-serif
+const CAT_COLORS = {Food:'#f59e0b',Transport:'#3b82f6',Rent:'#8b5cf6',Shopping:'#ec4899',Entertainment:'#10b981',Health:'#ef4444',Others:'#6b7280'};
+function catColor(l){ return CAT_COLORS[l] || '#6b7280'; }
+
+const NUM_FONT = "'Inter','Roboto',Arial,sans-serif";
+Chart.defaults.color = 'rgba(180,190,215,.85)';
+Chart.defaults.font.family = NUM_FONT;
+
+// Fix 1: Pie chart — responsive, fills container, legend alongside
+const catData = {{ cat_data|tojson }};
+if (Object.keys(catData).length) {
+  const labels = Object.keys(catData), vals = Object.values(catData);
+  const colors = labels.map(l => catColor(l));
+  const total  = vals.reduce((a,b)=>a+b,0);
+  new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: { labels, datasets:[{ data:vals, backgroundColor:colors, borderWidth:2, borderColor:'rgba(255,255,255,.05)', hoverOffset:10 }] },
+    options: {
+      responsive: true, maintainAspectRatio: true, cutout: '65%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ₹${c.parsed.toFixed(0)} (${((c.parsed/total)*100).toFixed(1)}%)` } }
+      },
+      animation: { duration: 900 }
+    }
+  });
+  const leg = document.getElementById('pieLegend');
+  labels.forEach((l, i) => {
+    const pct = ((vals[i]/total)*100).toFixed(1);
+    const el = document.createElement('div');
+    el.className = 'leg-item';
+    el.innerHTML = `<span class="leg-dot" style="background:${colors[i]}"></span>
+      <span class="leg-label">${l}</span>
+      <span class="leg-val">₹${vals[i].toFixed(0)}</span>
+      <span style="font-size:.7rem;color:var(--text-2);margin-left:3px">${pct}%</span>`;
+    leg.appendChild(el);
+  });
+}
+
+// Fix 5: Trend chart — sans-serif tick font
+const trendData = {{ trend_data|safe }};
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: trendData.map(d=>d.month),
+    datasets:[{ label:'₹', data:trendData.map(d=>d.amount), borderColor:'#f0a500',
+      backgroundColor:'rgba(240,165,0,.09)', borderWidth:2.5,
+      pointBackgroundColor:'#f0a500', pointRadius:5, pointHoverRadius:7,
+      fill:true, tension:.4 }]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>` ₹${c.parsed.y.toFixed(0)}` }} },
+    scales:{
+      x:{ grid:{color:'rgba(255,255,255,.04)'}, ticks:{font:{family:NUM_FONT}} },
+      y:{ grid:{color:'rgba(255,255,255,.04)'}, ticks:{font:{family:NUM_FONT}, callback:v=>'₹'+v.toLocaleString('en-IN')} }
+    },
+    animation:{duration:1000}
+  }
+});
+
+// Fix 5: Daily chart — sans-serif tick font
+const dLabels = {{ daily_labels|safe }}, dVals = {{ daily_values|safe }};
+const maxIdx = dVals.indexOf(Math.max(...dVals));
+new Chart(document.getElementById('dailyChart'), {
+  type: 'bar',
+  data: {
+    labels: dLabels,
+    datasets:[{ data:dVals, backgroundColor:dVals.map((_,i)=>i===maxIdx?'#ef4444':'rgba(99,102,241,.65)'), borderRadius:4, borderSkipped:false }]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>` ₹${c.parsed.y.toFixed(0)}` }} },
+    scales:{
+      x:{ grid:{display:false}, ticks:{maxTicksLimit:8, font:{family:NUM_FONT}} },
+      y:{ grid:{color:'rgba(255,255,255,.04)'}, ticks:{font:{family:NUM_FONT}, callback:v=>'₹'+v} }
+    },
+    animation:{duration:800}
+  }
+});
+
+// Month picker
+document.getElementById('monthPicker').addEventListener('change', function(){
+  location.href = '/dashboard?month=' + this.value;
+});
+
+// Fix 2: Add Funds to savings goal (no page reload)
+async function addFunds() {
+  const input = document.getElementById('addFundsInput');
+  const btn   = event.target;
+  const amount = parseFloat(input.value);
+  if (!amount || amount <= 0) { showFundMsg('Enter a valid amount', 'err'); return; }
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const res  = await fetch('/api/add_funds', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ amount })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('savingsRing').style.strokeDashoffset = 198 - (data.pct/100)*198;
+      document.getElementById('ringPct').textContent = data.pct + '%';
+      document.getElementById('ringProg').textContent =
+        '₹' + Math.round(data.current).toLocaleString('en-IN') +
+        ' / ₹' + Math.round(data.target).toLocaleString('en-IN');
+      input.value = '';
+      showFundMsg('₹' + Math.round(amount).toLocaleString('en-IN') + ' added!', 'ok');
+    } else {
+      showFundMsg(data.error || 'Error', 'err');
+    }
+  } catch(e) { showFundMsg('Network error', 'err'); }
+  btn.disabled = false;
+  btn.textContent = '＋ Add';
+}
+
+function showFundMsg(text, type) {
+  const el = document.getElementById('fundMsg');
+  el.textContent = text;
+  el.className = 'ring-funds-msg ' + (type === 'ok' ? 'msg-ok' : 'msg-err');
+  setTimeout(() => { el.textContent = ''; el.className = 'ring-funds-msg'; }, 3000);
+}
+
+document.getElementById('addFundsInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addFunds(); }
+});
+
+// Fix 3: Combobox — searchable category with custom creation
+(function() {
+  const input     = document.getElementById('catSearch');
+  const hidden    = document.getElementById('catHidden');
+  const dropdown  = document.getElementById('catDropdown');
+  const createOpt = document.getElementById('catCreateOpt');
+  const createLbl = document.getElementById('catCreateLabel');
+  if (!input) return;
+
+  const allOpts = () => Array.from(dropdown.querySelectorAll('.combobox-opt:not(.combobox-create)'));
+
+  function showDropdown() { dropdown.classList.add('open'); }
+  function hideDropdown() { setTimeout(() => dropdown.classList.remove('open'), 180); }
+
+  function filterOpts(q) {
+    const lower = q.toLowerCase().trim();
+    let hasMatch = false;
+    allOpts().forEach(opt => {
+      const match = !lower || opt.dataset.val.toLowerCase().includes(lower);
+      opt.style.display = match ? '' : 'none';
+      if (match) hasMatch = true;
+    });
+    if (lower && !hasMatch) {
+      createLbl.textContent = q.trim();
+      createOpt.style.display = '';
+    } else {
+      createOpt.style.display = 'none';
+    }
+  }
+
+  input.addEventListener('focus', () => { filterOpts(input.value); showDropdown(); });
+  input.addEventListener('blur',  hideDropdown);
+  input.addEventListener('input', () => { hidden.value = ''; filterOpts(input.value); showDropdown(); });
+
+  dropdown.addEventListener('mousedown', async e => {
+    const opt = e.target.closest('.combobox-opt');
+    if (!opt) return;
+    e.preventDefault();
+    if (opt.classList.contains('combobox-create')) {
+      const name = createLbl.textContent.trim();
+      // Persist custom category via API
+      try {
+        await fetch('/api/add_custom_category', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ name })
+        });
+      } catch(err) {}
+      // Add option to dropdown for this session
+      const newOpt = document.createElement('div');
+      newOpt.className = 'combobox-opt';
+      newOpt.dataset.val = name;
+      newOpt.textContent = name;
+      dropdown.insertBefore(newOpt, createOpt);
+      selectOpt(name);
+    } else {
+      selectOpt(opt.dataset.val);
+    }
+  });
+
+  function selectOpt(val) {
+    input.value  = val;
+    hidden.value = val;
+    dropdown.classList.remove('open');
+    createOpt.style.display = 'none';
+    allOpts().forEach(o => { o.style.display = ''; });
+  }
+})();
+</script>
+{% endblock %}
